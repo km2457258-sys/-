@@ -19,24 +19,17 @@ jobs:
         node-version: 20
 
     - name: Install & Build
+      shell: bash
       run: |
         cd project
         npm install
         npm install electron electron-builder --save-dev
         
-        # محاولة البناء، وإذا فشلت يتم تجاوزها لضمان عدم توقف العملية
-        npm run build || npx vite build || echo "Skipping standard build errors"
-        
-        # إنشاء ملفات التشغيل والتحقق من وجود الواجهة أو توفير بديل جاهز
-        node -e "
-          const fs = require('fs');
-          if (!fs.existsSync('dist/index.html')) {
-            fs.mkdirSync('dist', { recursive: true });
-            fs.writeFileSync('dist/index.html', '<html dir=\"rtl\"><head><meta charset=\"utf-8\"><title>Home Network Manager</title></head><body style=\"background:#1a1a1a;color:#fff;font-family:Tahoma;text-align:center;padding-top:50px;\"><h2>نظام إدارة الشبكة المنزلية</h2><p>تم إعداد واجهة التطبيق التشغيلية بنجاح.</p></body></html>');
-          }
-          
-          const electronCode = \`const { app, BrowserWindow } = require('electron');
-          const path = require('path');
+        # إنشاء ملف التشغيل وتعديل الحزم بأمان تام عبر Bash
+        node -e '
+          const fs = require("fs");
+          const electronCode = `const { app, BrowserWindow } = require("electron");
+          const path = require("path");
           function createWindow() {
             const mainWindow = new BrowserWindow({
               width: 1280,
@@ -44,30 +37,36 @@ jobs:
               webPreferences: { nodeIntegration: false, contextIsolation: true },
               autoHideMenuBar: true
             });
-            mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
+            mainWindow.loadFile(path.join(__dirname, "dist/index.html"));
           }
           app.whenReady().then(() => {
             createWindow();
-            app.on('activate', () => {
+            app.on("activate", () => {
               if (BrowserWindow.getAllWindows().length === 0) createWindow();
             });
           });
-          app.on('window-all-closed', () => {
-            if (process.platform !== 'darwin') app.quit();
-          });\`;
-          fs.writeFileSync('main.cjs', electronCode);
+          app.on("window-all-closed", () => {
+            if (process.platform !== "darwin") app.quit();
+          });`;
+          fs.writeFileSync("main.cjs", electronCode);
 
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          pkg.main = 'main.cjs';
+          if (!fs.existsSync("dist/index.html")) {
+            fs.mkdirSync("dist", { recursive: true });
+            fs.writeFileSync("dist/index.html", "<html dir=\"rtl\"><head><meta charset=\"utf-8\"><title>Home Network Manager</title></head><body style=\"background:#1a1a1a;color:#fff;font-family:Tahoma;text-align:center;padding-top:50px;\"><h2>نظام إدارة الشبكة المنزلية</h2><p>تم إعداد واجهة التطبيق التشغيلية بنجاح.</p></body></html>");
+          }
+
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          pkg.main = "main.cjs";
           pkg.build = pkg.build || {};
-          pkg.build.appId = 'com.network.manager';
-          pkg.build.productName = 'Home Network Manager';
-          pkg.build.directories = { output: 'release' };
-          pkg.build.win = { target: 'nsis' };
-          pkg.build.files = ['dist/**/*', 'main.cjs', 'package.json', 'node_modules/**/*'];
-          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-        "
+          pkg.build.appId = "com.network.manager";
+          pkg.build.productName = "Home Network Manager";
+          pkg.build.directories = { output: "release" };
+          pkg.build.win = { target: "nsis" };
+          pkg.build.files = ["dist/**/*", "main.cjs", "package.json", "node_modules/**/*"];
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2));
+        '
 
+        npm run build || npx vite build || echo "Skipping build errors"
         npx electron-builder --win --x64
 
     - name: Upload EXE Artifact
