@@ -15,13 +15,28 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 22
 
     - name: Install & Build
       run: |
         cd project
         npm install
         npm install electron electron-builder --save-dev
+        
+        # حقن إعدادات Electron ومسار main.js تلقائياً في package.json لتجنب أي أخطاء
+        node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.main = 'main.js';
+          pkg.build = pkg.build || {
+            appId: 'com.network.manager',
+            productName: 'Home Network Manager',
+            win: { target: 'nsis' },
+            files: ['dist/**/*', 'main.js', 'package.json', 'node_modules/**/*']
+          };
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+        "
+
         npm run build
         npx electron-builder --win --x64
 
