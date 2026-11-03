@@ -24,17 +24,39 @@ jobs:
         npm install
         npm install electron electron-builder --save-dev
         
-        # حقن إعدادات Electron ومسار الإخراج في package.json
+        # إنشاء ملف main.cjs تلقائياً وتحديث package.json لحل مشكلة التوافقية
         node -e "
           const fs = require('fs');
+          const electronCode = \`const { app, BrowserWindow } = require('electron');
+          const path = require('path');
+          function createWindow() {
+            const mainWindow = new BrowserWindow({
+              width: 1280,
+              height: 800,
+              webPreferences: { nodeIntegration: false, contextIsolation: true },
+              autoHideMenuBar: true
+            });
+            mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
+          }
+          app.whenReady().then(() => {
+            createWindow();
+            app.on('activate', () => {
+              if (BrowserWindow.getAllWindows().length === 0) createWindow();
+            });
+          });
+          app.on('window-all-closed', () => {
+            if (process.platform !== 'darwin') app.quit();
+          });\`;
+          fs.writeFileSync('main.cjs', electronCode);
+
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          pkg.main = 'main.js';
+          pkg.main = 'main.cjs';
           pkg.build = pkg.build || {};
           pkg.build.appId = 'com.network.manager';
           pkg.build.productName = 'Home Network Manager';
           pkg.build.directories = { output: 'release' };
           pkg.build.win = { target: 'nsis' };
-          pkg.build.files = ['dist/**/*', 'main.js', 'package.json', 'node_modules/**/*'];
+          pkg.build.files = ['dist/**/*', 'main.cjs', 'package.json', 'node_modules/**/*'];
           fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
         "
 
