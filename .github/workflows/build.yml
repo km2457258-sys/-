@@ -1,8 +1,51 @@
-- name: Upload EXE Artifact
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install & Build
+      run: |
+        cd project
+        npm install
+        npm install electron electron-builder --save-dev
+        
+        # حقن إعدادات Electron ومسار الإخراج في package.json
+        node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.main = 'main.js';
+          pkg.build = pkg.build || {};
+          pkg.build.appId = 'com.network.manager';
+          pkg.build.productName = 'Home Network Manager';
+          pkg.build.directories = { output: 'release' };
+          pkg.build.win = { target: 'nsis' };
+          pkg.build.files = ['dist/**/*', 'main.js', 'package.json', 'node_modules/**/*'];
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+        "
+
+        npm run build
+        npx electron-builder --win --x64
+
+    - name: Upload EXE Artifact
       uses: actions/upload-artifact@v4
       with:
         name: NetworkManager-EXE
         path: |
           project/release/*.exe
-          project/release/**/*.exe
           project/dist/*.exe
+        if-no-files-found: ignore
